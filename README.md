@@ -318,6 +318,12 @@ This pattern can be useful when:
 
     Not really. This is configuration demo, not a tool that can be used as is. You can setup your own containers or vms according to commands in docker compose, replacing while loops with systemd services and changing ips and ports according to your own network topology. Cloning and starting would result in running tests of this demo, not in internet access for your isolated container.
 
+* Do i need to have `docker` to connect my isolated container to the internet?
+
+    No.
+
+    Here `docker` and `docker compose` are used as an environment to test the solution. They help creating isolated container, usual container and a network between them. If you have isolated system, you do not need `docker` to execute these commands on the isolated system itself.
+
 * Why use `reverse_tcp_forwarding` when we can use `ssh -R`?
 
     ssh -R is perfectly adequate for many deployments. However, after an unexpected disconnect, sshd may keep the reverse-forwarded port allocated until it detects the session timeout. During that period, reconnect attempts can fail because the port is still considered in use. It would cause downtime for a few minutes.

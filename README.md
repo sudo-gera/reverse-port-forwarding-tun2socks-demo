@@ -314,6 +314,10 @@ This pattern can be useful when:
 
 ## FAQ
 
+* How to use it? Can I use it by just cloning and running it?
+
+    Not really. This is configuration demo, not a tool that can be used as is. You can setup your own containers or vms according to commands in docker compose, replacing while loops with systemd services and changing ips and ports according to your own network topology. Cloning and starting would result in running tests of this demo, not in internet access for your isolated container.
+
 * Why use `reverse_tcp_forwarding` when we can use `ssh -R`?
 
     ssh -R is perfectly adequate for many deployments. However, after an unexpected disconnect, sshd may keep the reverse-forwarded port allocated until it detects the session timeout. During that period, reconnect attempts can fail because the port is still considered in use. It would cause downtime for a few minutes.
@@ -368,17 +372,17 @@ This pattern can be useful when:
 
     `WireGuard` and `OpenVPN` require UDP connection. This demo shows the situation when only TCP between containers is allowed.
 
-    `OpenVPN` has TCP mode, but this mode is extremely slow due to TCP-over-TCP problem. You can actually use it alongside this solution if you want to support ICMP while having fast TCP, but it requires much more complex configuration of routing TCP and UDP packets to one TUN, and others to another TUN.
+    `OpenVPN` has TCP mode, but this mode is extremely slow due to its TCP-over-TCP problem. You can actually use it alongside this solution if you want to support ICMP while having fast TCP, but it requires much more complex configuration of routing TCP and UDP packets to one TUN, and others to another TUN.
 
-    `ShadowSocks` is fast and works over TCP, but still does not have linux cli-only client with TUN support.
+    `ShadowSocks` is fast and works over TCP, but still does not have linux cli-only client with TUN support, which is required for transparent routing.
 
 * What happens if the tunnel disconnects?
 
-    Existing connections will be interrupted. New connections would be refused while socks proxy is not available. `tun2socks` will not stop working unless manually disabled. When socks proxy becomes available again, `tun2socks` would start using it automatically without any user action, which makes the tunnel seamless.
+    Existing connections will be interrupted. New connections would be refused while socks proxy is not available. `tun2socks` process will not stop working unless manually disabled. When socks proxy becomes available again, `tun2socks` would start using it automatically without any user action, which makes the tunnel seamless.
 
 * Is traffic encrypted?
 
-    Not by reverse_tcp_forwarding or socks proxy itself.
+    Not by reverse_tcp_forwarding or socks protocol itself.
 
     If encryption is required, run the TCP stream through SSH, TLS, or another encrypted transport before exposing it to untrusted networks.
 

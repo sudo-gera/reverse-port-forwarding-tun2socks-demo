@@ -1,0 +1,85 @@
+x-defaults: &defaults
+  platform: linux/amd64
+  cap_add:
+    - NET_ADMIN
+    - SYS_MODULE
+  devices:
+    - /dev/net/tun:/dev/net/tun
+  security_opt:
+    - seccomp:unconfined
+  stop_grace_period: 1s
+  logging:
+    driver: "local"
+    options:
+      max-size: "1m"
+      max-file: "10"
+  build:
+    context: .
+    dockerfile: Dockerfile
+
+services:
+
+  hasinet:
+    <<: *defaults
+    networks:
+      internet: # allow going to internet
+      internal:
+        ipv4_address: 172.31.51.2
+    command: 
+      - bash
+      - -xeuc
+      - |
+        : check that we have inet
+        ping -i 0.2 -n -w 1 1.1 || true
+        sleep 1
+        ( while sleep 0.1 ; do microsocks -i 127.0.0.1 -p 1080 ; done ) &
+        ( while sleep 0.1 ; do /badvpn-udpgw --logger stdout --loglevel info --listen-addr 127.0.0.1:7300 ; done ) &
+        : the only connection between services is TCP connection to 172.31.51.3:7565 coming from hasinet to noinet. and it is enough for noinet to have both UDP and TCP.
+        ( while sleep 0.1 ; do /reverse_tcp_forwarding --mode client --connection_timeout 300 --max_accepted_sockets_per_server 200 --max_connected_sockets 200 --first_bytes_filename /reverse_tcp_forwarding.txt --internal_port 7565 --internal_host 172.31.51.3 --external_port 1080 --external_host 127.0.0.1 --clock_interval 1 >& /dev/null ; done ) &
+        tail -f /dev/null
+  noinet:
+    <<: *defaults
+    networks:
+      # internet:
+      internal:
+        ipv4_address: 172.31.51.3
+    command: 
+      - bash
+      - -xeuc
+      - |
+        : check that we have no inet
+        ! ping -i 0.2 -n -w 1 1.1
+        sleep 1
+        ( while sleep 0.1 ; do /reverse_tcp_forwarding --mode server --connection_timeout 300 --max_accepted_sockets_per_server 200 --max_connected_sockets 200 --first_bytes_filename /reverse_tcp_forwarding.txt --internal_port 7565 --internal_host 0.0.0.0 --external_port 1080 --external_host 0.0.0.0 --clock_interval 1 >& /dev/null ; done ) &
+        : should be done before starting tun2socks, unless something keeps restarting tun2socks until interfaces are enabled, then the order does not matter.
+        /enable_tun2socks_ifaces.sh
+        : start separate bash command so it can be easily grep'ed and kill'ed later.
+        bash -xeuc 'while sleep 0.1 ; do /badvpn-tun2socks --logger stdout --loglevel info --tundev badvpntun --netif-ipaddr 10.240.128.2 --netif-netmask 255.255.255.252 --socks-server-addr 127.0.0.1:1080 --udpgw-remote-server-addr 127.0.0.1:7300 ; done' &
+        : wait for services to start
+        sleep 4
+        curl -v https://ipinfo.io --resolve ipinfo.io:443:34.117.59.81
+        : check that we have UDP support. Not checking with ping because tun2socks cannot handle ICMP.
+        /curl --max-time 8 -v --http3-only https://ozon.ru --resolve ozon.ru:443:185.73.193.68
+        : killing tun2socks process and bash process restarting it. This line greps processes and if run outside the container it might kill something else. In production you should use systemd to stop them.
+        kill $(ps -fax | grep badvpn-tun2socks | grep -v grep | awk '{print $1}')
+        sleep 0.1
+        : should be done only after tun2socks is stopped or you will get an error that the device is busy.
+        /disable_tun2socks_ifaces.sh
+        : check no internet
+        ! /curl --max-time 8 -v --http3-only https://ozon.ru --resolve ozon.ru:443:185.73.193.68
+        /enable_tun2socks_ifaces.sh
+        bash -xeuc 'while sleep 0.1 ; do /badvpn-tun2socks --logger stdout --loglevel info --tundev badvpntun --netif-ipaddr 10.240.128.2 --netif-netmask 255.255.255.252 --socks-server-addr 127.0.0.1:1080 --udpgw-remote-server-addr 127.0.0.1:7300 ; done' &
+        : wait for services to start
+        sleep 4
+        /curl --max-time 8 -v --http3-only https://ozon.ru --resolve ozon.ru:443:185.73.193.68
+        tail -f /dev/null
+
+networks:
+  internet:
+    driver: bridge
+  internal:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.31.51.0/24
+    internal: true

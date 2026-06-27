@@ -9,7 +9,7 @@ set -xeu
 name_to_save="$1"
 name_to_download="$2"
 
-ru_prefix='https://gitflic.ru/project/sudogera/files/blob/raw?inline=false&commit=6884c73484f598f449a2bc56e17653f667b508d8&file='
+ru_prefix='https://gitflic.ru/project/sudogera/files/blob/raw?inline=false&commit=9ae9708ab96b1ce617bc761d9a243724e4aabd35&file='
 us_prefix='https://github.com/sudo-gera/files/raw/refs/heads/master/'
 
 ipinfo="$(curl https://ipinfo.io  --resolve ipinfo.io:443:34.117.59.81)"
